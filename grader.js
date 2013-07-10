@@ -24,9 +24,11 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler');
 var HTMLFILE_DEFAULT = "index.html";
+var HTMLURL_DEFAULTFILE = "htmlfromurl.html";
 var CHECKSFILE_DEFAULT = "checks.json";
-
+var OUTPUTFILE = "output.json"
 var assertFileExists = function(infile) {
     var instr = infile.toString();
     if(!fs.existsSync(instr)) {
@@ -35,7 +37,10 @@ var assertFileExists = function(infile) {
     }
     return instr;
 };
-
+var parseUrl = function(inurl) {
+    var instr = inurl.toString();
+    return instr;
+};
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
 };
@@ -61,14 +66,36 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var buildfn = function(checks) {
+    var checkResponse = function(result, response) {
+        if (result instanceof Error) {
+            console.error('Error: ' + util.format(response.message));
+        } else {
+            console.error("Wrote %s", HTMLURL_DEFAULTFILE);
+            fs.writeFileSync(HTMLURL_DEFAULTFILE, result);
+			var checkJson = checkHtmlFile(HTMLURL_DEFAULTFILE, checks);
+			var outJson = JSON.stringify(checkJson, null, 4);
+			console.log(outJson);
+	    fs.writeFileSync( OUTPUTFILE, outJson);
+        }
+    };
+    return checkResponse;
+};
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
-        .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+		.option('-u, --url <html_url>', 'url to html file', clone(parseUrl))
+        .parse(process.argv);HTMLURL_DEFAULTFILE
+	if (!program.url) {
+		var checkJson = checkHtmlFile(program.file, program.checks);
+		var outJson = JSON.stringify(checkJson, null, 4);
+		console.log(outJson);
+	} else {
+		var responseHandler = buildfn(program.checks);
+		rest.get(program.url).on('complete', responseHandler);
+	}
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
